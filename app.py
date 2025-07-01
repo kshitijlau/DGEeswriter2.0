@@ -3,8 +3,8 @@ import pandas as pd
 import openai
 import io
 
-# This script (v8.0) is the final version, incorporating a three-tiered
-# conditional logic for the opening sentence based on the highest score value.
+# This script (v8.1) is the final, precision-tuned version. It adds a critical
+# sub-rule to ensure the opening sentence for high-scorers is not a run-on sentence.
 
 # --- Helper Function to convert DataFrame to Excel in memory ---
 def to_excel(df):
@@ -18,12 +18,12 @@ def to_excel(df):
     processed_data = output.getvalue()
     return processed_data
 
-# --- The RE-ENGINEERED Master Prompt Template (Version 8.0 - Conditional Logic) ---
+# --- The RE-ENGINEERED Master Prompt Template (Version 8.1 - Final Polish) ---
 def create_master_prompt(salutation_name, pronoun, person_data):
     """
     Dynamically creates the new, highly-constrained prompt for the Azure OpenAI API.
-    VERSION 8.0: Implements a new, three-tiered conditional logic for the opening
-    sentence based on the value of the single highest competency score.
+    VERSION 8.1: Adds a final, critical sub-rule to stop the opening sentence
+    from continuing after the verb phrase for high-scorers.
 
     Args:
         salutation_name (str): The name to be used for the person, including titles (e.g., "Dr. Jonas", "Irene").
@@ -38,7 +38,7 @@ You are an elite talent management consultant from a top-tier firm. Your writing
 
 ## NON-NEGOTIABLE CORE RULES
 1.  **Language:** The entire summary MUST be written in **British English**.
-2.  **Structure:** The entire summary MUST be a **single, unified paragraph**. There can be no deviation from this rule.
+2.  **Structure:** The entire summary MUST be a **single, unified paragraph**. This is the most important structural rule and there can be no deviation.
 3.  **Competencies:** You MUST NOT use the exact name of a competency (e.g., "Results Driver", "Strategic Thinker") in the narrative. Instead, you MUST describe the behavior using a verb phrase (e.g., "...demonstrated an ability to drive results," or "...showcased strategic thinking.").
 
 ## Core Objective
@@ -57,11 +57,14 @@ Synthesize the provided competency data for {salutation_name} into a single, coh
     * You must first identify the single highest numerical score in the input data and then follow the appropriate rule below.
 
     * **Rule A: If the highest score is 3.5 or greater (>= 3.5):**
-        * The first sentence **MUST** follow one of these four exact formats, reflecting a clear strength:
+        * The first sentence **MUST** follow one of these four exact formats:
             1.  `{salutation_name} evidenced a strong ability to [highest scoring competency verb phrase].`
             2.  `{salutation_name} evidenced a strong capacity to [highest scoring competency verb phrase].`
             3.  `{salutation_name} demonstrated a strong ability to [highest scoring competency verb phrase].`
             4.  `{salutation_name} demonstrated a strong capacity to [highest scoring competency verb phrase].`
+        * **CRITICAL SUB-RULE:** This first sentence **MUST END IMMEDIATELY** after the verb phrase with a full stop. Do not add any commas, clauses, or further elaboration to this first sentence. All elaboration must begin in the second sentence.
+        * **Correct Example:** "Khasiba demonstrated a strong ability to drive results." (The sentence ends here).
+        * **Incorrect Example:** "Khasiba demonstrated a strong ability to drive results, showcasing her focus on outcomes."
 
     * **Rule B: If the highest score is between 2.5 and 3.49 (inclusive):**
         * The first sentence **MUST** follow one of these two formats, reflecting competence:
@@ -70,12 +73,11 @@ Synthesize the provided competency data for {salutation_name} into a single, coh
 
     * **Rule C: If the highest score is less than 2.5 (< 2.5):**
         * You **MUST NOT** use any of the formulaic opening sentences from Rule A or B.
-        * Instead, the summary must begin immediately by describing the most positive observed behavior, even if it's not a formal strength.
-        * **You must learn from and replicate the style of the 'Fatema' example provided below for this specific case.**
+        * Instead, the summary must begin immediately by describing the most positive observed behavior, based on the 'Fatema' example.
 
 2.  **STRUCTURE AFTER OPENING: The Integrated Feedback Loop.**
     * After the opening sentence (or from the beginning, in the case of Rule C), the rest of the paragraph **MUST** address each competency one by one in a logical flow.
-    * For each competency, you will first describe the **observed positive behavior** (the strength).
+    * For each competency, you will first describe the **observed positive behavior**.
     * Then, **IMMEDIATELY AFTER** describing the behavior, you will provide the **related development area** for that same competency, introduced with a phrase like "As a next step...", "To build on this...", or "Fatema may benefit from...".
 
 3.  **Name and Pronoun Usage:**
@@ -86,13 +88,13 @@ Synthesize the provided competency data for {salutation_name} into a single, coh
 ## ---------------------------------------------
 
 **Example 1: Khasiba (Highest Score >= 3.5)**
-* **Logic:** Follows Rule A. The summary begins with a "strong ability/capacity" sentence based on her highest score. The rest of the paragraph follows the Integrated Feedback Loop.
+* **Logic:** Follows Rule A. The summary begins with a short, direct "strong ability/capacity" sentence. The sentence ends. The rest of the paragraph follows the Integrated Feedback Loop.
 * **Correct Output:** "Khasiba demonstrated a strong ability to drive results. She consistently evidenced the ability to analyse complex scenarios... To build on this, she could focus on refining her ability to evaluate complex, high-stakes scenarios..."
 
 **Example 2: Fatema (Highest Score < 2.5)**
-* **Analysis:** This is the gold standard for Rule C. Notice how it does **not** have a formal opening sentence.
-* **Logic:** It begins immediately by describing her most positive observed behavior from her highest-scoring competency (Effective Collaborator: 2.47). It then seamlessly moves into the Integrated Feedback Loop for all other competencies. The tone is constructive and developmental.
-* **Correct Output:** "Fatema evidenced collaboration by engaging positively with different parties, internally and externally, offering support and ensuring shared goals were properly achieved. To further develop her skills, Fatema may need to strengthen her self-confidence and the ability to communicate clearly, especially when facing stressful situations. Adapting her communication style, articulating compelling reasoning for her arguments and understanding stakeholders’ diverse needs and perspectives, could help enhance her influence, conflict management and collaboration. She demonstrated customer advocacy through resolving customers’ issues and fulfilling their requirements, and showed awareness of emerging trends and their potential impact on the organisation. Fatema may benefit from identifying customers’ needs and adopting service standards that would enhance quality and improve customer experience..."
+* **Analysis:** This is the gold standard for Rule C. It does **not** have a formal opening sentence.
+* **Logic:** It begins immediately by describing her most positive observed behavior from her highest-scoring competency. It then seamlessly moves into the Integrated Feedback Loop for all other competencies.
+* **Correct Output:** "Fatema evidenced collaboration by engaging positively with different parties, internally and externally, offering support and ensuring shared goals were properly achieved. To further develop her skills, Fatema may need to strengthen her self-confidence and the ability to communicate clearly..."
 
 ## ---------------------------------------------
 ## FINAL INSTRUCTIONS
@@ -131,12 +133,12 @@ def generate_summary_azure(prompt, api_key, endpoint, deployment_name):
         return None
 
 # --- Streamlit App Main UI ---
-st.set_page_config(page_title="DGE Executive Summary Generator v8.0", layout="wide")
+st.set_page_config(page_title="DGE Executive Summary Generator v8.1", layout="wide")
 
-st.title("📄 DGE Executive Summary Generator (V8.0)")
+st.title("📄 DGE Executive Summary Generator (V8.1)")
 st.markdown("""
 This application generates professional executive summaries based on leadership competency scores.
-**Version 8.0 uses advanced conditional logic for the opening sentence based on the candidate's score.**
+**Version 8.1 is the final, precision-tuned version incorporating all rules.**
 1.  **Set up your secrets**.
 2.  **Download the Sample Template**. The format requires a `salutation_name` column.
 3.  **Upload your completed Excel file**.
@@ -162,9 +164,9 @@ sample_df = pd.DataFrame(sample_data)
 sample_excel_data = to_excel(sample_df)
 
 st.download_button(
-    label="📥 Download Sample Template File (V8.0)",
+    label="📥 Download Sample Template File (V8.1)",
     data=sample_excel_data,
-    file_name="dge_summary_template_v8.0.xlsx",
+    file_name="dge_summary_template_v8.1.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
@@ -236,7 +238,7 @@ if uploaded_file is not None:
 
             if generated_summaries:
                 st.balloons()
-                st.subheader("Generated Summaries (V8.0)")
+                st.subheader("Generated Summaries (V8.1)")
                 
                 output_df = df.copy()
                 output_df['Executive Summary'] = generated_summaries
@@ -245,9 +247,9 @@ if uploaded_file is not None:
                 
                 results_excel_data = to_excel(output_df)
                 st.download_button(
-                    label="📥 Download V8.0 Results as Excel",
+                    label="📥 Download V8.1 Results as Excel",
                     data=results_excel_data,
-                    file_name="Generated_Executive_Summaries_V8.0.xlsx",
+                    file_name="Generated_Executive_Summaries_V8.1.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
